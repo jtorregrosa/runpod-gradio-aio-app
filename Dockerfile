@@ -3,6 +3,7 @@ FROM runpod/pytorch:2.1.0-py3.10-cuda11.8.0-devel-ubuntu22.04 AS builder
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
+WORKDIR /sources
 
 # Update and install dependencies
 RUN apt-get update && apt-get install -y \
@@ -19,7 +20,7 @@ ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # Copy requirements.txt and install dependencies
-COPY requirements.txt .
+COPY src/requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
 # Stage 2: Build the final image
@@ -31,14 +32,18 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy the virtual environment from the builder stage
 COPY --from=builder /opt/venv /opt/venv
+RUN echo "source /opt/venv/bin/activate" >> ~/.bashrc
 
 # Copy required scripts
 COPY pre_start.sh /pre_start.sh
 COPY stop_gradio_aio_app.sh /restart_app.sh
+COPY relauncher.py /relauncher.py
 
 # Copy the project files
-WORKDIR /app
-COPY . /app
+WORKDIR /sources
+COPY src /sources
+
+SHELL ["/bin/bash", "-c"]
 
 # Expose the port Gradio will run on
 EXPOSE 7860
