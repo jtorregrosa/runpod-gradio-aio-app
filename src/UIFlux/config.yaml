@@ -1,0 +1,62 @@
+---
+loras:
+- id: "jtorregrosa/endless_flux_lora"
+  weight_name: "endless_flux_lora_v1.safetensors"
+  trigger: "[jtendless Lines in pure black and white background]"
+  description: "This is a LoRA trained on FLUX.1-dev to generate images using an endless line style."
+  
+- id: "Shakker-Labs/FLUX.1-dev-LoRA-One-Click-Creative-Template"
+  weight_name: "FLUX-dev-lora-One-Click-Creative-Template.safetensors"
+  trigger: "[cartoon picture]"
+  description: "This is a LoRA trained on FLUX.1-dev by Nvwa_model_studio for creative sticker-like photos."
+  
+- id: "Shakker-Labs/FLUX.1-dev-LoRA-AntiBlur"
+  weight_name: "FLUX-dev-lora-AntiBlur.safetensors"
+  trigger: ""
+  description: "This is a functional LoRA trained on FLUX.1-dev for deep DoF (Anti-Blur🔥) by Vadim_Fedenko on Shakker AI."
+  
+- id: "Shakker-Labs/FLUX.1-dev-LoRA-Children-Simple-Sketch"
+  weight_name: "FLUX-dev-lora-children-simple-sketch.safetensors"
+  trigger: "[sketched style]"
+  description: "This is a LoRA trained on FLUX.1-dev for Children's Simple-Sketch by Hongke on Shakker AI."
+  
+- id: "Shakker-Labs/FLUX.1-dev-LoRA-MiaoKa-Yarn-World"
+  weight_name: "FLUX-dev-lora-MiaoKa-Yarn-World.safetensors"
+  trigger: "[mkym this is made of wool]"
+  description: "This is a LoRA (MiaoKa-Yarn-World) trained on FLUX.1-dev by MIAOKA for creating wool yarn art. It is capable of producing intricate and realistic woolen textures and patterns while maintaining high performance."
+  
+- id: "Shakker-Labs/FLUX.1-dev-LoRA-Logo-Design"
+  weight_name: "FLUX-dev-lora-Logo-Design.safetensors"
+  trigger: "[wablogo, logo, Minimalist]"
+  description: "This is a LoRA (Logo-Design) trained on FLUX.1-dev by CJim on Shakker AI."
+
+- id: "Shakker-Labs/AWPortrait-FL"
+  weight_name: "AWPortrait-FL-lora.safetensors"
+  trigger: "[close up portrait]"
+  description: "AWPortrait-FL is finetuned on FLUX.1-dev using the training set of AWPortrait-XL and nearly 2,000 fashion photography photos with extremely high aesthetic quality. It has remarkable improvements in composition and details, with more delicate and realistic skin and textual. Trained by DynamicWang at AWPlanet."
+
+- id: "CultriX/flux-nsfw-highress"
+  weight_name: "nsfw-highress.safetensors"
+  trigger: "[nsfw]"
+  description: "This is a LoRA trained on FLUX.1-dev for generating NSFW nude content"
+
+- id: "alimama-creative/FLUX.1-Turbo-Alpha"
+  weight_name: "diffusion_pytorch_model.safetensors"
+  trigger: ""
+  description: "This checkpoint is a 8-step distilled Lora, trained based on FLUX.1-dev model. We use a multi-head discriminator to improve the distill quality. Our model can be used for T2I, inpainting controlnet and other FLUX related models. The recommended guidance_scale=3.5 and lora_scale=1. Our Lower steps version will release later."
+
+defaults:
+  settings:
+    models:
+      base_model: "black-forest-labs/FLUX.1-dev"
+      lora: ""
+    output:
+      width: 1024
+      height: 1024
+      images_per_prompt: 1
+    pipeline:
+      cpu_offload: true
+      lora_scale: 1.0
+      guidance_scale: 3.5
+      num_inference_steps: 24
+      max_sequence_length: 512

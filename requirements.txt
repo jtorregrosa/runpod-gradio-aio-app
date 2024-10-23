@@ -1,0 +1,15 @@
+accelerate
+aiofiles
+annotated-types
+colorama
+git+https://github.com/huggingface/diffusers.git
+gradio
+gradio_client
+huggingface-hub
+numpy
+safetensors
+sentencepiece
+tokenizers
+torch==2.4.0
+transformers
+protobuf
