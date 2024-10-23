@@ -17,8 +17,6 @@ class UIFluxUpscaler(UIBase):
         self.generator = FluxImageUpscaler()
 
     def initialize(self) -> UIBase:
-        login(token=os.getenv('HF_TOKEN', ''))
-        
         return self
 
     def submit(

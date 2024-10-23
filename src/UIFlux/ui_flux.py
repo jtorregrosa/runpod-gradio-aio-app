@@ -28,8 +28,6 @@ class UIFlux(UIBase):
         self.loras = config['loras']
         self.defaults = config['defaults']['settings']
         self.available_lora_ids = [""] + [item['id'] for item in config['loras']]
-
-        login(token=os.getenv('HF_TOKEN', ''))
         
         return self
 
