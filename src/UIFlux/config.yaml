@@ -83,6 +83,12 @@ models:
       guidance_scale: 3.5
       num_inference_steps: 28
       max_sequence_length: 512
+  loras:
+  - id: "Shakker-Labs/SD3.5-LoRA-Linear-Red-Light"
+    name: "Linear Red Light"
+    weight_name: "SD35-lora-Linear-Red-Light.safetensors"
+    trigger: "[Linear red light]"
+    description: "This is a LoRA that generates images using Linear Red Light style."
 
 - id: "stabilityai/stable-diffusion-3.5-large-turbo"
   name: "SD-3.5-large-turbo"

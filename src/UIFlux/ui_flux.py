@@ -6,6 +6,7 @@ import gradio as gr
 from UIBase.ui_base import UIBase
 from Utils.utils import load_yaml
 from .flux_image_generator import FluxImageGenerator
+from .sd3_image_generator import SD3ImageGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ class UIFlux(UIBase):
         self.available_models: List[Tuple[str,str]] = []
         self.available_loras: List[Tuple[str,str]] = []
         self.defaults: dict = {}
-        self.generator = FluxImageGenerator()
+        self.generator = None
         self.logger = logger
         
         self.logger.info("UIFlux instance initialized.")
@@ -99,8 +100,12 @@ class UIFlux(UIBase):
 
             # Find selected LoRA weights
             model = next((item for item in self.models if item.get('id') == model_id), None)
-            lora = next((item for item in model.loras if item.get('id') == lora_weights), None)
+            lora = next((item for item in model.get('loras', []) if item.get('id') == lora_weights), None)
 
+            if model.get('type') == "sd3":
+                self.generator = SD3ImageGenerator()
+            else:
+                self.generator = FluxImageGenerator()
             # Initialize the generator
             self.generator.initialize(
                 model_id=model_id,

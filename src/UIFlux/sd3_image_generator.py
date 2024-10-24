@@ -76,7 +76,7 @@ class SD3ImageGenerator:
             RuntimeError: If loading the model or LoRA weights fails.
         """
         # Create a hash to avoid reinitializing with the same parameters
-        param_string = f"{model_id}-{lora_weights_id or 'None'}-{lora_weight_name or 'None'}-{lora_scale}-{cpu_offload}"
+        param_string = f"{model_id}-{lora_weights_id or 'None'}-{lora_weight_name or 'None'}-{lora_scale}-{model_cpu_offload}-{sequential_cpu_offload}-{vae_slicing}-{vae_tiling}"
         current_hash = hashlib.sha256(param_string.encode('utf-8')).hexdigest()
 
         if self.previous_hash == current_hash:
@@ -108,6 +108,9 @@ class SD3ImageGenerator:
         
         if vae_tiling:
             self.pipe.enable_vae_tiling()
+
+        if not model_cpu_offload and not sequential_cpu_offload and not vae_slicing and not vae_tiling:
+            self.pipe = self.pipe.to("cuda")
 
     def _load_and_fuse_lora_weights(self, lora_weights_id: str, lora_weight_name: Optional[str], lora_scale: float):
         """

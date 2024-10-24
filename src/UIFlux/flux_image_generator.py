@@ -108,6 +108,9 @@ class FluxImageGenerator:
         
         if vae_tiling:
             self.pipe.enable_vae_tiling()
+        
+        if not model_cpu_offload and not sequential_cpu_offload and not vae_slicing and not vae_tiling:
+            self.pipe = self.pipe.to("cuda")
 
     def _load_and_fuse_lora_weights(self, lora_weights_id: str, lora_weight_name: Optional[str], lora_scale: float):
         """
