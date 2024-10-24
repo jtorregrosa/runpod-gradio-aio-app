@@ -26,8 +26,19 @@ def run_app(server_name: str = '0.0.0.0', server_port: int = 7860):
 
         # Create a tabbed interface using the initialized UIs
         root = gr.TabbedInterface(
-            [ui_flux, ui_flux_upscaler],
-            ["Flux.1 LoRA Bulk", "Flux.1 Upscaler"]
+            interface_list=[
+                ui_flux,
+                ui_flux_upscaler
+            ],
+            tab_names=[
+                "Flux.1 LoRA Bulk",
+                "Flux.1 Upscaler"
+            ],
+            title="Gradio AIO Application",
+            theme="saq1b/gradio-theme",
+            css="""
+            .prose { font-size: var(--text-sd) !important; }
+            """
         )
 
         logging.info(f"Launching the Gradio AIO Application on {server_name}:{server_port}.")

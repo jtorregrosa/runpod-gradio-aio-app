@@ -16,11 +16,13 @@ class UIFlux(UIBase):
 
     def __init__(self):
         super().__init__()
-        self.loras: List[dict] = []
-        self.available_lora_ids: List[str] = []
+        self.models: List[dict] = []
+        self.available_models: List[Tuple[str,str]] = []
+        self.available_loras: List[Tuple[str,str]] = []
         self.defaults: dict = {}
         self.generator = FluxImageGenerator()
         self.logger = logger
+        
         self.logger.info("UIFlux instance initialized.")
 
     def initialize(self) -> UIBase:
@@ -36,10 +38,10 @@ class UIFlux(UIBase):
             config = load_yaml(yaml_file_path)
 
             # Load configuration
-            self.loras = config.get('loras', [])
+            self.models = config.get('models', [])
             self.defaults = config.get('defaults', {}).get('settings', {})
-            self.available_lora_ids = [""] + [item.get('id', '') for item in self.loras]
-
+            self.available_models = [[item.get('name'), item.get('id')] for item in self.models]
+            self.available_loras = [["None", ""]] + [[item.get('name'), item.get('id')] for item in self.models[0].get('loras')]
             self.logger.info("Configuration loaded successfully from '%s'.", yaml_file_path)
         except Exception as e:
             self.logger.error("Failed to load configuration: %s", e, exc_info=True)
@@ -74,7 +76,10 @@ class UIFlux(UIBase):
         width: int,
         height: int,
         images_per_prompt: int,
-        cpu_offload: bool,
+        model_cpu_offload: bool,
+        sequential_cpu_offload: bool,
+        vae_slicing: bool,
+        vae_tiling: bool,
         lora_scale: float,
         guidance_scale: float,
         num_inference_steps: int,
@@ -93,7 +98,8 @@ class UIFlux(UIBase):
             self.logger.info("Submission started for model: %s with prompt: %s", model_id, prompt[:50])
 
             # Find selected LoRA weights
-            lora = next((item for item in self.loras if item.get('id') == lora_weights), None)
+            model = next((item for item in self.models if item.get('id') == model_id), None)
+            lora = next((item for item in model.loras if item.get('id') == lora_weights), None)
 
             # Initialize the generator
             self.generator.initialize(
@@ -101,7 +107,10 @@ class UIFlux(UIBase):
                 lora_weights_id=lora.get('id') if lora else None,
                 lora_weight_name=lora.get('weight_name') if lora else None,
                 lora_scale=lora_scale,
-                cpu_offload=cpu_offload
+                model_cpu_offload=model_cpu_offload,
+                sequential_cpu_offload=sequential_cpu_offload,
+                vae_slicing=vae_slicing,
+                vae_tiling=vae_tiling,
             )
 
             self.logger.info("Generator initialized with model: %s and LoRA weights: %s", model_id, lora_weights)
@@ -153,16 +162,54 @@ class UIFlux(UIBase):
             "",  # Reset prompt input
             "black-forest-labs/FLUX.1-dev",  # Reset model selector to default value
             None,  # Reset LORA weights to None
-            self.defaults.get('output', {}).get('width', 512),  # Width default
-            self.defaults.get('output', {}).get('height', 512),  # Height default
-            self.defaults.get('output', {}).get('images_per_prompt', 1),  # Images per prompt
-            self.defaults.get('pipeline', {}).get('cpu_offload', False),  # CPU offload
-            self.defaults.get('pipeline', {}).get('lora_scale', 1.0),  # LORA scale
-            self.defaults.get('pipeline', {}).get('guidance_scale', 7.5),  # Guidance scale
-            self.defaults.get('pipeline', {}).get('num_inference_steps', 50),  # Inference steps
-            self.defaults.get('pipeline', {}).get('max_sequence_length', 512),  # Max sequence length
+            self.defaults.get('output', {}).get('width', 512),
+            self.defaults.get('output', {}).get('height', 512),
+            self.defaults.get('output', {}).get('images_per_prompt', 1),
+            self.defaults.get('memory', {}).get('model_cpu_offload', False),
+            self.defaults.get('memory', {}).get('sequential_cpu_offload', False),
+            self.defaults.get('memory', {}).get('vae_slicing', False),
+            self.defaults.get('memory', {}).get('vae_tiling', False),
+            self.defaults.get('pipeline', {}).get('lora_scale', 1.0),
+            self.defaults.get('pipeline', {}).get('guidance_scale', 7.5),
+            self.defaults.get('pipeline', {}).get('num_inference_steps', 50),
+            self.defaults.get('pipeline', {}).get('max_sequence_length', 512),
         )
+    
+    def on_model_change(self, model_id):
+        model = next((item for item in self.models if item.get('id') == model_id), None)
+        overrides = next((item for item in self.models if item.get('id') == model_id), None).get('overrides')
+        
+        if model.get('loras',[]) == []:
+            lora_weights_selector = gr.Dropdown(
+                choices=self.available_loras,
+                value=None,
+                visible=False
+            )
+        else:
+            available_lora_ids = [["None", ""]] + [[item.get('name', ''), item.get('id', '')] for item in model.get('loras',[])]
+            lora_weights_selector = gr.Dropdown(
+                choices=available_lora_ids,
+                value=available_lora_ids[0][1],
+                visible=True
+            )
+        return [
+            lora_weights_selector, 
+            overrides['pipeline']['lora_scale'], 
+            overrides['pipeline']['guidance_scale'], 
+            overrides['pipeline']['num_inference_steps'], 
+            overrides['pipeline']['max_sequence_length'],
+        ]
 
+    def on_lora_weights_selector_change(self, model_id, lora_weights_selector):
+        model = next((item for item in self.models if item.get('id') == model_id), None)
+        lora = next((item for item in model.get('loras', []) if item.get('id') == lora_weights_selector), None)
+        description = None
+        
+        if lora is not None:
+            description = lora['description']
+
+        return gr.Dropdown(info=description)
+        
     def interface(self) -> gr.Blocks:
         """
         Constructs the Gradio interface for the Flux Image Generator.
@@ -175,39 +222,34 @@ class UIFlux(UIBase):
             gr.Markdown("<h1 style='text-align: center;'>Flux.1 LORA Image Generator</h1>")
             with gr.Row():
                 with gr.Column(scale=1):
-                    with gr.Accordion("Input Parameters", open=True):
-                        prompt_input = gr.Textbox(
-                            label="Enter your prompts (one per line)",
-                            lines=5,
-                            placeholder="Enter one prompt per line",
-                        )
+                    prompt_input = gr.Textbox(
+                        label="Prompts (one per line)",
+                        lines=5,
+                        placeholder="Enter one prompt per line",
+                    )
 
                     with gr.Accordion("Model Settings", open=False):
                         model_selector = gr.Dropdown(
-                            choices=["black-forest-labs/FLUX.1-dev", "black-forest-labs/FLUX.1-schnell"],
-                            label="Select Base Model",
-                            value="black-forest-labs/FLUX.1-dev",
+                            choices=self.available_models,
+                            label="Base Model",
+                            value=self.available_models[0][1]
                         )
                         lora_weights_selector = gr.Dropdown(
-                            choices=self.available_lora_ids,
-                            label="LORA Weights",
-                            value=None,
-                        )
-                        lora_weights_description_input = gr.Textbox(
-                            label="LORA Description",
-                            value=None,
-                            visible=False,
+                            choices=self.available_loras,
+                            label="LoRA Weights",
+                            visible=True,
+                            value=self.available_loras[0][1],
                         )
 
                     with gr.Accordion("Output Settings", open=False):
                         width_input = gr.Number(
-                            label="Output Image Width",
+                            label="Width",
                             minimum=256,
                             maximum=2048,
                             value=self.defaults['output']['width'],
                         )
                         height_input = gr.Number(
-                            label="Output Image Height",
+                            label="Height",
                             minimum=256,
                             maximum=2048,
                             value=self.defaults['output']['height'],
@@ -219,12 +261,9 @@ class UIFlux(UIBase):
                         )
 
                     with gr.Accordion("Pipeline Settings", open=False):
-                        cpu_offload_checkbox = gr.Checkbox(
-                            label="Enable CPU Offload",
-                            value=self.defaults['pipeline']['cpu_offload'],
-                        )
                         lora_scale_slider = gr.Slider(
                             label="LORA Scale",
+                            info="A scaling factor for the LoRA weights to control their influence on the model. The default value is 1.0, indicating full influence. Lower values decrease the impact of the LoRA weights.",
                             minimum=0.0,
                             maximum=3,
                             value=self.defaults['pipeline']['lora_scale'],
@@ -233,6 +272,7 @@ class UIFlux(UIBase):
                         )
                         guidance_scale_slider = gr.Slider(
                             label="Guidance Scale",
+                            info="A scale factor for classifier-free guidance, which controls how much the model should adhere to the given prompt. Higher values lead to images more closely aligned with the prompt.",
                             minimum=0.0,
                             maximum=20.0,
                             value=self.defaults['pipeline']['guidance_scale'],
@@ -240,6 +280,7 @@ class UIFlux(UIBase):
                         )
                         num_inference_steps_slider = gr.Slider(
                             label="Number of Inference Steps",
+                            info="The number of inference steps used for the generation process. More steps typically result in higher quality images, but also increase the computation time.",
                             minimum=1,
                             maximum=100,
                             value=self.defaults['pipeline']['num_inference_steps'],
@@ -247,21 +288,44 @@ class UIFlux(UIBase):
                         )
                         max_sequence_length_slider = gr.Slider(
                             label="Max Sequence Length",
+                            info="The maximum sequence length for processing each prompt. This controls how much of the prompt text the model can process.",
                             minimum=1,
                             maximum=1024,
                             value=self.defaults['pipeline']['max_sequence_length'],
                             step=1,
                         )
 
-                        with gr.Row():
-                            clear_btn = gr.Button(
-                                value="Clear",
-                                variant="secondary",
-                            )
-                            generate_btn = gr.Button(
-                                value="Submit",
-                                variant="primary",
-                            )
+                    with gr.Accordion("Memory Saving Settings", open=False):
+                        model_cpu_offload_checkbox = gr.Checkbox(
+                            label="Model CPU Offload",
+                            info="Offloads the model to the CPU to manage memory efficiently. This can be useful when GPU memory is limited, as portions of the model are offloaded to the CPU during the inference process.",
+                            value=True,
+                        )
+                        sequential_cpu_offload_checkbox = gr.Checkbox(
+                            label="Sequential CPU Offload",
+                            info="Offloads model layers one at a time during inference. This helps in managing memory consumption when GPU resources are constrained",
+                            value=True,
+                        )
+                        vae_slicing_checkbox = gr.Checkbox(
+                            label="VAE Slicing",
+                            info="VAE slicing reduces the memory required during image processing by slicing the VAE operations into smaller chunks.",
+                            value=True,
+                        )
+                        vae_tiling_checkbox = gr.Checkbox(
+                            label="VAE Tiling",
+                            info="Allows processing of large images by dividing them into smaller tiles. This can be useful for handling high-resolution inputs when memory is a concern.",
+                            value=True,
+                        ) 
+                    
+                    with gr.Row():
+                        clear_btn = gr.Button(
+                            value="Clear",
+                            variant="secondary",
+                        )
+                        generate_btn = gr.Button(
+                            value="Submit",
+                            variant="primary",
+                        )
 
                 with gr.Column(scale=1):
                     image_gallery = gr.Gallery(
@@ -273,7 +337,31 @@ class UIFlux(UIBase):
                         show_fullscreen_button=True,
                     )
 
-            # Button click actions for submission and clearing
+            model_selector.change(
+                fn=self.on_model_change,
+                inputs= [
+                    model_selector,
+                ],
+                outputs=[
+                    lora_weights_selector,
+                    lora_scale_slider,
+                    guidance_scale_slider,
+                    num_inference_steps_slider,
+                    max_sequence_length_slider
+                ],
+            )
+            
+            lora_weights_selector.change(
+                fn=self.on_lora_weights_selector_change,
+                inputs= [
+                    model_selector,
+                    lora_weights_selector,
+                ],
+                outputs=[
+                    lora_weights_selector,
+                ],
+            )
+
             generate_btn.click(
                 fn=self.submit,
                 inputs=[
@@ -283,7 +371,10 @@ class UIFlux(UIBase):
                     width_input,
                     height_input,
                     images_per_prompt_input,
-                    cpu_offload_checkbox,
+                    model_cpu_offload_checkbox,
+                    sequential_cpu_offload_checkbox,
+                    vae_slicing_checkbox,
+                    vae_tiling_checkbox,
                     lora_scale_slider,
                     guidance_scale_slider,
                     num_inference_steps_slider,
@@ -304,7 +395,10 @@ class UIFlux(UIBase):
                     width_input,
                     height_input,
                     images_per_prompt_input,
-                    cpu_offload_checkbox,
+                    model_cpu_offload_checkbox,
+                    sequential_cpu_offload_checkbox,
+                    vae_slicing_checkbox,
+                    vae_tiling_checkbox,
                     lora_scale_slider,
                     guidance_scale_slider,
                     num_inference_steps_slider,

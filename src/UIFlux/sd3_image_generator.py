@@ -1,4 +1,4 @@
-from diffusers import FluxPipeline
+from diffusers import StableDiffusion3Pipeline
 from typing import List, Optional, Callable, Generator, Tuple
 import logging
 import time
@@ -13,9 +13,9 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-class FluxImageGenerator:
+class SD3ImageGenerator:
     """
-    A class to initialize and generate images using the FluxPipeline.
+    A class to initialize and generate images using the StableDiffusion3Pipeline.
     """
 
     def __init__(self):
@@ -76,7 +76,7 @@ class FluxImageGenerator:
             RuntimeError: If loading the model or LoRA weights fails.
         """
         # Create a hash to avoid reinitializing with the same parameters
-        param_string = f"{model_id}-{lora_weights_id or 'None'}-{lora_weight_name or 'None'}-{lora_scale}-{model_cpu_offload}-{sequential_cpu_offload}-{vae_slicing}-{vae_tiling}"
+        param_string = f"{model_id}-{lora_weights_id or 'None'}-{lora_weight_name or 'None'}-{lora_scale}-{cpu_offload}"
         current_hash = hashlib.sha256(param_string.encode('utf-8')).hexdigest()
 
         if self.previous_hash == current_hash:
@@ -88,7 +88,7 @@ class FluxImageGenerator:
 
         try:
             # Initialize the pipeline from the model
-            self.pipe = FluxPipeline.from_pretrained(model_id, torch_dtype=torch.bfloat16, use_safetensors=True)
+            self.pipe = StableDiffusion3Pipeline.from_pretrained(model_id, torch_dtype=torch.bfloat16, use_safetensors=True)
             logger.info("Successfully loaded model '%s'", model_id)
         except Exception as e:
             logger.error("Failed to load the model '%s': %s", model_id, e, exc_info=True)
@@ -128,6 +128,18 @@ class FluxImageGenerator:
         except Exception as e:
             logger.error("Failed to load or fuse LoRA weights '%s': %s", lora_weights_id, e, exc_info=True)
             raise RuntimeError(f"Failed to load or fuse LoRA weights: {e}")
+
+    def _enable_cpu_offloading(self):
+        """
+        Enables CPU offloading for the pipeline.
+        """
+        try:
+            self.pipe.enable_model_cpu_offload()
+            self.pipe.enable_sequential_cpu_offload()
+            logger.info("Enabled CPU offload for the pipeline.")
+        except Exception as e:
+            logger.error("Failed to enable CPU offloading: %s", e, exc_info=True)
+            raise RuntimeError("Failed to enable CPU offloading.")
 
     def generate(
             self,
