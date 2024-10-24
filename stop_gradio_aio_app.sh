@@ -1,3 +1,3 @@
 #!/bin/bash
 
-kill "$(pgrep -f '^python src/app.py$')"
+kill $(pgrep -f "^python ${WORKSPACE}/app/app.py$")

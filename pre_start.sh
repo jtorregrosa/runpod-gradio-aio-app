@@ -26,5 +26,5 @@ else
     echo "Started Gradio application through relauncher script"
     cd "${APP_DIR}" || exit
     source /opt/venv/bin/activate
-    python /relauncher.py "python $APP_DIR/app.py" &
+    python /relauncher.py "python $APP_DIR/app.py > /proc/1/fd/1 2>/proc/1/fd/2" &
 fi

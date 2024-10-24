@@ -7,9 +7,10 @@ gradio
 gradio_client
 huggingface-hub
 numpy
+peft
+protobuf
 safetensors
 sentencepiece
 tokenizers
 torch==2.4.0
 transformers
-protobuf
