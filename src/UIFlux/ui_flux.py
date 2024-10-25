@@ -117,7 +117,7 @@ class UIFlux(UIBase):
             # Initialize the generator
             self.generator.initialize(
                 model_id=model_id,
-                lora_weights_id=lora.get('id') if lora else None,
+                lora_weights_id=lora.get('repo') if lora else None,
                 lora_weight_name=lora.get('weight_name') if lora else None,
                 lora_scale=lora_scale,
                 model_cpu_offload=model_cpu_offload,
@@ -162,6 +162,7 @@ class UIFlux(UIBase):
                 case "flux":
                     for images in self.generator.generate(
                         prompt_list=prompt_list,
+                        negative_prompt=negative_prompt,
                         width=width,
                         height=height,
                         images_per_prompt=images_per_prompt,
@@ -291,20 +292,33 @@ class UIFlux(UIBase):
             gr.HTML('<p style="text-align: center; margin:1rem;">A Gradio-based application for bulk image generation, allowing users to create high-quality images using various models and LoRAs. Highly customizable, it supports multiple model combinations, offers fine-tuned control over generation parameters, and features an intuitive interface for efficient workflow. Ideal for artists, designers, and researchers seeking versatile and efficient image creation.</p>')
             with gr.Row():
                 with gr.Column(scale=1):
-                    prompt_input = gr.Textbox(
-                        label="✍🏼 Prompt",
-                        info="Enter your prompt to create an image based on your description. ONE PROMPT PER LINE",
-                        lines=5,
-                        placeholder="Enter one prompt per line",
-                    )
-                    negative_prompt_input = gr.Textbox(
-                        label="❌ Negative prompt",
-                        info="Enter a negative prompt to exclude certain elements from the generated image. NEGATIVE PROMPT WILL AFFECT ALL PROMPTS",
-                        lines=3,
-                        placeholder="Enter global negative prompt",
-                        value="(lowres, low quality, worst quality)",
-                        visible=False,
-                    )
+                    with gr.Group():
+                        prompt_input = gr.Textbox(
+                            label="✍🏼 Prompt",
+                            info="Enter your prompt to create an image based on your description. ONE PROMPT PER LINE",
+                            lines=5,
+                            placeholder="Enter one prompt per line",
+                        )
+                        negative_prompt_input = gr.Textbox(
+                            label="❌ Negative prompt",
+                            info="Enter a negative prompt to exclude certain elements from the generated image. NEGATIVE PROMPT WILL AFFECT ALL PROMPTS",
+                            lines=3,
+                            placeholder="Enter global negative prompt",
+                            value="(lowres, low quality, worst quality)",
+                            visible=False,
+                        )
+                        
+                        with gr.Row():
+                            clear_btn = gr.Button(
+                                value="Clear",
+                                variant="secondary",
+                                scale=1,
+                            )
+                            generate_btn = gr.Button(
+                                value="Submit",
+                                variant="primary",
+                                scale=2,
+                            )
 
                     with gr.Accordion("⚙️ Model Settings", open=False):
                         model_selector = gr.Dropdown(
@@ -402,18 +416,6 @@ class UIFlux(UIBase):
                             info="Allows processing of large images by dividing them into smaller tiles. This can be useful for handling high-resolution inputs when memory is a concern.",
                             value=self.defaults['memory']['vae_tiling'],
                         ) 
-                    
-                    with gr.Row():
-                        clear_btn = gr.Button(
-                            value="Clear",
-                            variant="secondary",
-                            scale=1,
-                        )
-                        generate_btn = gr.Button(
-                            value="Submit",
-                            variant="primary",
-                            scale=2,
-                        )
 
                 with gr.Column(scale=1):
                     image_gallery = gr.Gallery(

@@ -43,6 +43,7 @@ def run_app(server_name: str = '0.0.0.0', server_port: int = 7860):
             theme="saq1b/gradio-theme",
             css=css,
         ) as app:
+            gr.HTML('<h1 style="text-align: center; margin:1rem;">AI Gradio Lab</h1>')
             with gr.Accordion("ℹ️ System Information", open=False):
                 with gr.Row():
                     with gr.Column(scale=1):
