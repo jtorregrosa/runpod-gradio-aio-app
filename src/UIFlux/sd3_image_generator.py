@@ -147,6 +147,7 @@ class SD3ImageGenerator:
     def generate(
             self,
             prompt_list: List[str],
+            negative_prompt: str,
             width: int,
             height: int,
             images_per_prompt: int,
@@ -210,6 +211,7 @@ class SD3ImageGenerator:
                 # Generate images for the current prompt
                 prompt_images = self.pipe(
                     prompt,
+                    negative_prompt,
                     height=height,
                     width=width,
                     guidance_scale=guidance_scale,

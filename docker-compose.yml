@@ -8,9 +8,15 @@ services:
     ports:
       - "7860:7860"
       - "8888:8888"
-    # volumes:
-    #   - .:/workspace/app
+    volumes:
+      - ./src:/workspace/app
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
     environment:
       - HF_TOKEN=${HF_TOKEN}
       - JUPYTER_PASSWORD=${JUPYTER_PASSWORD}
       - WORKSPACE=/workspace
+      - NVIDIA_VISIBLE_DEVICES=all

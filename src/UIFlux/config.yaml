@@ -3,6 +3,7 @@ models:
 - id: "black-forest-labs/FLUX.1-dev"
   name: "FLUX.1-dev"
   type: "flux"
+  description: "FLUX.1 [dev] is an open-weight, guidance-distilled model for non-commercial applications. Directly distilled from FLUX.1 [pro], FLUX.1 [dev] obtains similar quality and prompt adherence capabilities, while being more efficient than a standard model of the same size"
   overrides:
     pipeline:
       lora_scale: 1.0
@@ -67,6 +68,7 @@ models:
 - id: "black-forest-labs/FLUX.1-schnell"
   name: "FLUX.1-schnell"
   type: "flux"
+  description: "A high-speed variant of the FLUX.1 model by Black Forest Labs, optimized for rapid inference and efficient processing in time-sensitive applications. FLUX.1 [schnell] is openly available under an Apache2.0 license."
   overrides:
     pipeline:
       lora_scale: 1.0
@@ -77,6 +79,7 @@ models:
 - id: "stabilityai/stable-diffusion-3.5-large"
   name: "SD-3.5-large"
   type: "sd3"
+  description: "An advanced image generation model by Stability AI, based on Stable Diffusion version 3.5, offering enhanced image quality and detail with a larger architecture for more complex and nuanced outputs."
   overrides:
     pipeline:
       lora_scale: 1.0
@@ -93,6 +96,18 @@ models:
 - id: "stabilityai/stable-diffusion-3.5-large-turbo"
   name: "SD-3.5-large-turbo"
   type: "sd3"
+  description: "A performance-optimized version of Stable Diffusion 3.5 by Stability AI, designed to generate high-quality images faster while maintaining the detail and complexity of the larger model architecture."
+  overrides:
+    pipeline:
+      lora_scale: 1.0
+      guidance_scale: 0.0
+      num_inference_steps: 4
+      max_sequence_length: 512
+
+- id: "dummy"
+  name: "Dummy"
+  type: "dummy"
+  description: "A dummy image generator capable of generating images of random colors"
   overrides:
     pipeline:
       lora_scale: 1.0
@@ -113,7 +128,7 @@ defaults:
 
     memory:
       model_cpu_offload: false
-      sequential_cpu_offload: false
+      sequential_cpu_offload: true
       vae_slicing: false
       vae_tiling: false
 

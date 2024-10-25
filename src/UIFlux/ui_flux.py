@@ -1,10 +1,11 @@
 import os
 import logging
 from typing import List, Tuple, Optional
-
+from PIL import Image
+from UIFlux.fake_image_generator import FakeImageGenerator
 import gradio as gr
 from UIBase.ui_base import UIBase
-from Utils.utils import load_yaml
+from Utils.utils import load_yaml, zip_images
 from .flux_image_generator import FluxImageGenerator
 from .sd3_image_generator import SD3ImageGenerator
 
@@ -23,6 +24,7 @@ class UIFlux(UIBase):
         self.defaults: dict = {}
         self.generator = None
         self.logger = logger
+        self.images_list = []
         
         self.logger.info("UIFlux instance initialized.")
 
@@ -71,7 +73,9 @@ class UIFlux(UIBase):
 
     def submit(
         self,
+        image_state,
         prompt: str,
+        negative_prompt: str,
         model_id: str,
         lora_weights: Optional[str],
         width: int,
@@ -102,10 +106,14 @@ class UIFlux(UIBase):
             model = next((item for item in self.models if item.get('id') == model_id), None)
             lora = next((item for item in model.get('loras', []) if item.get('id') == lora_weights), None)
 
-            if model.get('type') == "sd3":
-                self.generator = SD3ImageGenerator()
-            else:
-                self.generator = FluxImageGenerator()
+            match model.get('type'):
+                case "sd3":
+                    self.generator = SD3ImageGenerator()
+                case "flux":
+                    self.generator = FluxImageGenerator()
+                case "dummy":
+                    self.generator = FakeImageGenerator()
+
             # Initialize the generator
             self.generator.initialize(
                 model_id=model_id,
@@ -137,20 +145,43 @@ class UIFlux(UIBase):
                 progress(current_progress, f"[Prompt {idx+1}] Step {step+1}/{total_steps}")
                 self.logger.debug("Progress updated: %0.2f%%", current_progress * 100)
 
-            # Generate images and yield results to update the UI
-            for images in self.generator.generate(
-                prompt_list=prompt_list,
-                width=width,
-                height=height,
-                images_per_prompt=images_per_prompt,
-                guidance_scale=guidance_scale,
-                num_inference_steps=num_inference_steps,
-                max_sequence_length=max_sequence_length,
-                callback=gradio_callback
-            ):
-                self.logger.info("Yielding generated images for current batch.")
-                yield images
-
+            match model.get('type'):
+                case "sd3":
+                    for images in self.generator.generate(
+                        prompt_list=prompt_list,
+                        negative_prompt=negative_prompt,
+                        width=width,
+                        height=height,
+                        images_per_prompt=images_per_prompt,
+                        guidance_scale=guidance_scale,
+                        num_inference_steps=num_inference_steps,
+                        max_sequence_length=max_sequence_length,
+                        callback=gradio_callback
+                    ):
+                        yield images, images
+                case "flux":
+                    for images in self.generator.generate(
+                        prompt_list=prompt_list,
+                        width=width,
+                        height=height,
+                        images_per_prompt=images_per_prompt,
+                        guidance_scale=guidance_scale,
+                        num_inference_steps=num_inference_steps,
+                        max_sequence_length=max_sequence_length,
+                        callback=gradio_callback
+                    ):
+                        yield images, images
+                case "dummy":
+                    for images in self.generator.generate(
+                        prompt_list=prompt_list,
+                        width=width,
+                        height=height,
+                        images_per_prompt=images_per_prompt,
+                        num_inference_steps=num_inference_steps,
+                        callback=gradio_callback
+                    ):
+                        yield images, images
+            
         except Exception as e:
             self.logger.error("An error occurred during image generation: %s", e, exc_info=True)
             raise RuntimeError(f"Image generation failed: {e}")
@@ -180,26 +211,47 @@ class UIFlux(UIBase):
             self.defaults.get('pipeline', {}).get('max_sequence_length', 512),
         )
     
-    def on_model_change(self, model_id):
+    def on_model_change(self, model_id: str, true_cfg: bool):
         model = next((item for item in self.models if item.get('id') == model_id), None)
         overrides = next((item for item in self.models if item.get('id') == model_id), None).get('overrides')
+
+        model_selector = gr.Dropdown(
+            info=model.get('description', None),
+        )
+        
+        negative_prompt_input = gr.Textbox(
+            visible=True if model.get('type') == 'sd3' or (model.get('type') == 'flux' and true_cfg) else False
+        )
+        
+        true_cfg_checkbox = gr.Checkbox(
+            visible=True if model.get('type') == 'flux' else False
+        )
         
         if model.get('loras',[]) == []:
             lora_weights_selector = gr.Dropdown(
                 choices=self.available_loras,
                 value=None,
-                visible=False
+                visible=False,
             )
+            lora_scale_slider = gr.Slider(visible=False)
         else:
             available_lora_ids = [["None", ""]] + [[item.get('name', ''), item.get('id', '')] for item in model.get('loras',[])]
             lora_weights_selector = gr.Dropdown(
                 choices=available_lora_ids,
                 value=available_lora_ids[0][1],
-                visible=True
+                visible=True,
             )
+            lora_scale_slider = gr.Slider(
+                value=overrides['pipeline']['lora_scale'],
+                visible=True,
+            )
+            
         return [
+            true_cfg_checkbox,
+            negative_prompt_input,
+            model_selector,
             lora_weights_selector, 
-            overrides['pipeline']['lora_scale'], 
+            lora_scale_slider,
             overrides['pipeline']['guidance_scale'], 
             overrides['pipeline']['num_inference_steps'], 
             overrides['pipeline']['max_sequence_length'],
@@ -214,6 +266,14 @@ class UIFlux(UIBase):
             description = lora['description']
 
         return gr.Dropdown(info=description)
+    
+    def on_true_cfg_checkbox_change(self, model_id, true_cfg):
+        model = next((item for item in self.models if item.get('id') == model_id), None)
+        
+        return gr.Textbox(
+            visible=True if (model.get('type') == 'flux' and true_cfg) else False
+        )
+        
         
     def interface(self) -> gr.Blocks:
         """
@@ -224,20 +284,34 @@ class UIFlux(UIBase):
         """
         self.logger.info("Constructing Gradio interface.")
         with gr.Blocks() as interface:
-            gr.Markdown("<h1 style='text-align: center;'>Flux.1 LORA Image Generator</h1>")
+            image_state = gr.State([])
+            files_state = gr.State([])
+            
+            gr.HTML('<h1 style="text-align: center; margin:1rem;">Text2Image Lab</h1>')
+            gr.HTML('<p style="text-align: center; margin:1rem;">A Gradio-based application for bulk image generation, allowing users to create high-quality images using various models and LoRAs. Highly customizable, it supports multiple model combinations, offers fine-tuned control over generation parameters, and features an intuitive interface for efficient workflow. Ideal for artists, designers, and researchers seeking versatile and efficient image creation.</p>')
             with gr.Row():
                 with gr.Column(scale=1):
                     prompt_input = gr.Textbox(
-                        label="Prompts (one per line)",
+                        label="✍🏼 Prompt",
+                        info="Enter your prompt to create an image based on your description. ONE PROMPT PER LINE",
                         lines=5,
                         placeholder="Enter one prompt per line",
                     )
+                    negative_prompt_input = gr.Textbox(
+                        label="❌ Negative prompt",
+                        info="Enter a negative prompt to exclude certain elements from the generated image. NEGATIVE PROMPT WILL AFFECT ALL PROMPTS",
+                        lines=3,
+                        placeholder="Enter global negative prompt",
+                        value="(lowres, low quality, worst quality)",
+                        visible=False,
+                    )
 
-                    with gr.Accordion("Model Settings", open=False):
+                    with gr.Accordion("⚙️ Model Settings", open=False):
                         model_selector = gr.Dropdown(
                             choices=self.available_models,
                             label="Base Model",
-                            value=self.available_models[0][1]
+                            info=self.models[0].get('description', ''),
+                            value=self.available_models[0][1],
                         )
                         lora_weights_selector = gr.Dropdown(
                             choices=self.available_loras,
@@ -246,26 +320,33 @@ class UIFlux(UIBase):
                             value=self.available_loras[0][1],
                         )
 
-                    with gr.Accordion("Output Settings", open=False):
-                        width_input = gr.Number(
-                            label="Width",
-                            minimum=256,
-                            maximum=2048,
-                            value=self.defaults['output']['width'],
-                        )
-                        height_input = gr.Number(
-                            label="Height",
-                            minimum=256,
-                            maximum=2048,
-                            value=self.defaults['output']['height'],
-                        )
-                        images_per_prompt_input = gr.Number(
-                            label="Images Per Prompt",
-                            minimum=1,
-                            value=self.defaults['output']['images_per_prompt'],
-                        )
+                    with gr.Accordion("🖼️ Output Settings", open=False):
+                        with gr.Row():
+                            width_input = gr.Number(
+                                label="Width",
+                                minimum=256,
+                                maximum=2048,
+                                value=self.defaults['output']['width'],
+                            )
+                            height_input = gr.Number(
+                                label="Height",
+                                minimum=256,
+                                maximum=2048,
+                                value=self.defaults['output']['height'],
+                            )
+                            images_per_prompt_input = gr.Number(
+                                label="Images Per Prompt",
+                                minimum=1,
+                                value=self.defaults['output']['images_per_prompt'],
+                            )
 
-                    with gr.Accordion("Pipeline Settings", open=False):
+                    with gr.Accordion("⚗️ Pipeline Settings", open=False):
+                        true_cfg_checkbox = gr.Checkbox(
+                            label="Use True CFG",
+                            info="FLUX.1-dev is a guidance distill model. The original CFG process, which required twice the number of inference steps, is distilled into a guidance scale, thereby modulating the DIT through the guidance scale to simulate the true CFG process with half the inference steps.",
+                            value=False,
+                            visible=True,
+                        )
                         lora_scale_slider = gr.Slider(
                             label="LORA Scale",
                             info="A scaling factor for the LoRA weights to control their influence on the model. The default value is 1.0, indicating full influence. Lower values decrease the impact of the LoRA weights.",
@@ -273,7 +354,7 @@ class UIFlux(UIBase):
                             maximum=3,
                             value=self.defaults['pipeline']['lora_scale'],
                             step=0.1,
-                            visible=False,
+                            visible=True,
                         )
                         guidance_scale_slider = gr.Slider(
                             label="Guidance Scale",
@@ -300,36 +381,38 @@ class UIFlux(UIBase):
                             step=1,
                         )
 
-                    with gr.Accordion("Memory Saving Settings", open=False):
+                    with gr.Accordion("🪶 Memory Saving Settings", open=False):
                         model_cpu_offload_checkbox = gr.Checkbox(
                             label="Model CPU Offload",
                             info="Offloads the model to the CPU to manage memory efficiently. This can be useful when GPU memory is limited, as portions of the model are offloaded to the CPU during the inference process.",
-                            value=True,
+                            value=self.defaults['memory']['model_cpu_offload'],
                         )
                         sequential_cpu_offload_checkbox = gr.Checkbox(
                             label="Sequential CPU Offload",
                             info="Offloads model layers one at a time during inference. This helps in managing memory consumption when GPU resources are constrained",
-                            value=True,
+                            value=self.defaults['memory']['sequential_cpu_offload'],
                         )
                         vae_slicing_checkbox = gr.Checkbox(
                             label="VAE Slicing",
                             info="VAE slicing reduces the memory required during image processing by slicing the VAE operations into smaller chunks.",
-                            value=True,
+                            value=self.defaults['memory']['vae_slicing'],
                         )
                         vae_tiling_checkbox = gr.Checkbox(
                             label="VAE Tiling",
                             info="Allows processing of large images by dividing them into smaller tiles. This can be useful for handling high-resolution inputs when memory is a concern.",
-                            value=True,
+                            value=self.defaults['memory']['vae_tiling'],
                         ) 
                     
                     with gr.Row():
                         clear_btn = gr.Button(
                             value="Clear",
                             variant="secondary",
+                            scale=1,
                         )
                         generate_btn = gr.Button(
                             value="Submit",
                             variant="primary",
+                            scale=2,
                         )
 
                 with gr.Column(scale=1):
@@ -340,19 +423,62 @@ class UIFlux(UIBase):
                         show_download_button=True,
                         show_label=True,
                         show_fullscreen_button=True,
+                        value=[],
                     )
+                            # Download button
+                    def download_images(images, files_state):
+                        zip_buffer = zip_images(images)
+                        files_state.insert(0, zip_buffer)
+                        
+                        return files_state, files_state
 
+                    download_btn = gr.Button(
+                        value="Generate ZIP Bundle",
+                        variant="primary",
+                    )
+                    download_file = gr.File(
+                        label="Generated ZIP Files",
+                        file_count="multiple",
+                        height=150,
+                    )
+                    download_btn.click(
+                        fn=download_images, 
+                        inputs=[
+                            image_state,
+                            files_state,
+                        ], 
+                        outputs=[
+                            download_file,
+                            files_state,
+                        ]
+                    )
+                    
             model_selector.change(
                 fn=self.on_model_change,
                 inputs= [
                     model_selector,
+                    true_cfg_checkbox,
                 ],
                 outputs=[
+                    true_cfg_checkbox,
+                    negative_prompt_input,
+                    model_selector,
                     lora_weights_selector,
                     lora_scale_slider,
                     guidance_scale_slider,
                     num_inference_steps_slider,
                     max_sequence_length_slider
+                ],
+            )
+            
+            true_cfg_checkbox.change(
+                fn=self.on_true_cfg_checkbox_change,
+                inputs= [
+                    model_selector,
+                    true_cfg_checkbox,
+                ],
+                outputs=[
+                    negative_prompt_input,
                 ],
             )
             
@@ -370,7 +496,9 @@ class UIFlux(UIBase):
             generate_btn.click(
                 fn=self.submit,
                 inputs=[
+                    image_state,
                     prompt_input,
+                    negative_prompt_input,
                     model_selector,
                     lora_weights_selector,
                     width_input,
@@ -385,7 +513,7 @@ class UIFlux(UIBase):
                     num_inference_steps_slider,
                     max_sequence_length_slider,
                 ],
-                outputs=[image_gallery],
+                outputs=[image_gallery, image_state],
                 queue=True,
                 show_progress="minimal"
             )

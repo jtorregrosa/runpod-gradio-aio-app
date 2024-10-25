@@ -1,4 +1,5 @@
 from diffusers import FluxPipeline
+from .flux_cfg_pipeline import FluxCFGPipeline
 from typing import List, Optional, Callable, Generator, Tuple
 import logging
 import time
@@ -21,6 +22,7 @@ class FluxImageGenerator:
     def __init__(self):
         self.pipe = None
         self.previous_hash = None
+        self.true_cfg = False
 
     def initialize(
         self,
@@ -32,6 +34,7 @@ class FluxImageGenerator:
         sequential_cpu_offload: bool = False,
         vae_slicing: bool = False,
         vae_tiling: bool = False,
+        true_cfg: bool = False,
     ):
         """
         Initializes the FluxPipeline with the given parameters.
@@ -76,7 +79,7 @@ class FluxImageGenerator:
             RuntimeError: If loading the model or LoRA weights fails.
         """
         # Create a hash to avoid reinitializing with the same parameters
-        param_string = f"{model_id}-{lora_weights_id or 'None'}-{lora_weight_name or 'None'}-{lora_scale}-{model_cpu_offload}-{sequential_cpu_offload}-{vae_slicing}-{vae_tiling}"
+        param_string = f"{model_id}-{lora_weights_id or 'None'}-{lora_weight_name or 'None'}-{lora_scale}-{model_cpu_offload}-{sequential_cpu_offload}-{vae_slicing}-{vae_tiling}-{true_cfg}"
         current_hash = hashlib.sha256(param_string.encode('utf-8')).hexdigest()
 
         if self.previous_hash == current_hash:
@@ -88,7 +91,13 @@ class FluxImageGenerator:
 
         try:
             # Initialize the pipeline from the model
-            self.pipe = FluxPipeline.from_pretrained(model_id, torch_dtype=torch.bfloat16, use_safetensors=True)
+            if true_cfg:
+                self.true_cfg = True
+                self.pipe = FluxCFGPipeline.from_pretrained(model_id, torch_dtype=torch.bfloat16, use_safetensors=True)
+            else:
+                self.true_cfg = False
+                self.pipe = FluxPipeline.from_pretrained(model_id, torch_dtype=torch.bfloat16, use_safetensors=True)
+
             logger.info("Successfully loaded model '%s'", model_id)
         except Exception as e:
             logger.error("Failed to load the model '%s': %s", model_id, e, exc_info=True)
@@ -135,6 +144,7 @@ class FluxImageGenerator:
     def generate(
             self,
             prompt_list: List[str],
+            negative_prompt: str,
             width: int,
             height: int,
             images_per_prompt: int,
@@ -195,18 +205,35 @@ class FluxImageGenerator:
                 return callback_kwargs
 
             try:
-                # Generate images for the current prompt
-                prompt_images = self.pipe(
-                    prompt,
-                    height=height,
-                    width=width,
-                    guidance_scale=guidance_scale,
-                    num_inference_steps=num_inference_steps,
-                    max_sequence_length=max_sequence_length,
-                    generator=generator,
-                    callback_on_step_end=flux_callback,
-                    num_images_per_prompt=images_per_prompt
-                ).images
+                if self.true_cfg:
+                    # Generate images for the current prompt
+                    prompt_images = self.pipe(
+                        prompt,
+                        negative_prompt,
+                        height=height,
+                        width=width,
+                        guidance_scale=1,
+                        true_cfg=guidance_scale,
+                        num_inference_steps=num_inference_steps,
+                        max_sequence_length=max_sequence_length,
+                        generator=generator,
+                        callback_on_step_end=flux_callback,
+                        num_images_per_prompt=images_per_prompt
+                    ).images
+                else:
+                    # Generate images for the current prompt
+                    prompt_images = self.pipe(
+                        prompt,
+                        height=height,
+                        width=width,
+                        guidance_scale=guidance_scale,
+                        num_inference_steps=num_inference_steps,
+                        max_sequence_length=max_sequence_length,
+                        generator=generator,
+                        callback_on_step_end=flux_callback,
+                        num_images_per_prompt=images_per_prompt
+                    ).images
+                
 
                 for img_idx, prompt_image in enumerate(prompt_images):
                     images.append((prompt_image, f"Image {idx + 1}-{img_idx + 1}"))

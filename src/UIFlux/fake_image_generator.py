@@ -1,17 +1,27 @@
 import time
 import random
 import logging
-from typing import List, Tuple, Callable, Generator
+from typing import List, Optional, Tuple, Callable, Generator
 from PIL import Image
 
 # Configure a logger for this module
 logger = logging.getLogger(__name__)
 
 class FakeImageGenerator:
-    """
-    A class to simulate the generation of images based on given prompts.
-    """
-
+    def initialize(
+        self,
+        model_id: str,
+        lora_weights_id: Optional[str] = None,
+        lora_weight_name: Optional[str] = None,
+        lora_scale: float = 1.0,
+        model_cpu_offload: bool = False,
+        sequential_cpu_offload: bool = False,
+        vae_slicing: bool = False,
+        vae_tiling: bool = False,
+        true_cfg: bool = False,
+    ):
+        return
+    
     def generate(
             self,
             prompt_list: List[str],
