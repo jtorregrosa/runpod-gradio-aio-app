@@ -1,11 +1,12 @@
 import os
 import logging
+import pathlib
 from typing import List, Tuple, Optional
 from PIL import Image
 from UIFlux.fake_image_generator import FakeImageGenerator
 import gradio as gr
 from UIBase.ui_base import UIBase
-from Utils.utils import load_yaml, zip_images
+from Utils.utils import load_yaml, zip_images, generate_random_prompt
 from .flux_image_generator import FluxImageGenerator
 from .sd3_image_generator import SD3ImageGenerator
 
@@ -48,7 +49,7 @@ class UIFlux(UIBase):
             self.logger.info("Configuration loaded successfully from '%s'.", yaml_file_path)
         except Exception as e:
             self.logger.error("Failed to load configuration: %s", e, exc_info=True)
-            raise RuntimeError("Failed to initialize the UI configuration.")
+            raise gr.Error("Failed to initialize the UI configuration.")
         return self
 
     def process_prompt(self, prompt: str) -> List[str]:
@@ -65,8 +66,8 @@ class UIFlux(UIBase):
             ValueError: If the prompt input is empty.
         """
         if not prompt.strip():
-            self.logger.error("Prompts input cannot be empty.")
-            raise ValueError("Prompts input cannot be empty.")
+            self.logger.error("Prompt input cannot be empty.")
+            raise gr.Error("Prompt input cannot be empty.")
         processed_prompts = [line.strip() for line in prompt.split('\n') if line.strip()]
         self.logger.info("Processed %d prompts.", len(processed_prompts))
         return processed_prompts
@@ -77,7 +78,10 @@ class UIFlux(UIBase):
         prompt: str,
         negative_prompt: str,
         model_id: str,
-        lora_weights: Optional[str],
+        lora_weights_1: Optional[str],
+        lora_adapter_1_weight: float,
+        lora_weights_2: Optional[str],
+        lora_adapter_2_weight: float,
         width: int,
         height: int,
         images_per_prompt: int,
@@ -104,8 +108,9 @@ class UIFlux(UIBase):
 
             # Find selected LoRA weights
             model = next((item for item in self.models if item.get('id') == model_id), None)
-            lora = next((item for item in model.get('loras', []) if item.get('id') == lora_weights), None)
-
+            lora1 = next((item for item in model.get('loras', []) if item.get('id') == lora_weights_1), None)
+            lora2 = next((item for item in model.get('loras', []) if item.get('id') == lora_weights_2), None)
+            
             match model.get('type'):
                 case "sd3":
                     self.generator = SD3ImageGenerator()
@@ -117,8 +122,12 @@ class UIFlux(UIBase):
             # Initialize the generator
             self.generator.initialize(
                 model_id=model_id,
-                lora_weights_id=lora.get('repo') if lora else None,
-                lora_weight_name=lora.get('weight_name') if lora else None,
+                lora_weight_1_id=lora1.get('repo') if lora1 else None,
+                lora_weight_1_name=lora1.get('weight_name') if lora1 else None,
+                lora_adapter_1_weight=lora_adapter_1_weight,
+                lora_weight_2_id=lora2.get('repo') if lora2 else None,
+                lora_weight_2_name=lora2.get('weight_name') if lora2 else None,
+                lora_adapter_2_weight=lora_adapter_1_weight,
                 lora_scale=lora_scale,
                 model_cpu_offload=model_cpu_offload,
                 sequential_cpu_offload=sequential_cpu_offload,
@@ -126,16 +135,21 @@ class UIFlux(UIBase):
                 vae_tiling=vae_tiling,
             )
 
-            self.logger.info("Generator initialized with model: %s and LoRA weights: %s", model_id, lora_weights)
+            self.logger.info("Generator initialized")
 
             # Process prompt
             prompt_list = self.process_prompt(prompt)
 
             # Add specific LoRA trigger to the prompts if applicable
-            if lora and lora.get('trigger'):
-                trigger = lora.get('trigger', '')
+            if lora1 and lora1.get('trigger'):
+                trigger = lora1.get('trigger', '')
                 prompt_list = [f"{trigger} {item}".strip() for item in prompt_list]
-                self.logger.info("Applied LoRA trigger to prompts.")
+                self.logger.info("Applied LoRA 1 trigger to prompts.")
+
+            if lora2 and lora2.get('trigger'):
+                trigger = lora2.get('trigger', '')
+                prompt_list = [f"{trigger} {item}".strip() for item in prompt_list]
+                self.logger.info("Applied LoRA 2 trigger to prompts.")
 
             # Set up progress callback
             progress = gr.Progress()
@@ -199,6 +213,7 @@ class UIFlux(UIBase):
             "",  # Reset prompt input
             "black-forest-labs/FLUX.1-dev",  # Reset model selector to default value
             None,  # Reset LORA weights to None
+            None,
             self.defaults.get('output', {}).get('width', 512),
             self.defaults.get('output', {}).get('height', 512),
             self.defaults.get('output', {}).get('images_per_prompt', 1),
@@ -251,7 +266,8 @@ class UIFlux(UIBase):
             true_cfg_checkbox,
             negative_prompt_input,
             model_selector,
-            lora_weights_selector, 
+            lora_weights_selector,
+            lora_weights_selector,
             lora_scale_slider,
             overrides['pipeline']['guidance_scale'], 
             overrides['pipeline']['num_inference_steps'], 
@@ -274,6 +290,17 @@ class UIFlux(UIBase):
         return gr.Textbox(
             visible=True if (model.get('type') == 'flux' and true_cfg) else False
         )
+
+    def generate_random_prompt(self, prompt):
+        value = ""
+        if prompt:
+            value=f"{prompt}\n{generate_random_prompt()}"
+        else:
+            value=generate_random_prompt()
+            
+        return gr.Textbox(
+            value=value,
+        )
         
         
     def interface(self) -> gr.Blocks:
@@ -293,12 +320,20 @@ class UIFlux(UIBase):
             with gr.Row():
                 with gr.Column(scale=1):
                     with gr.Group():
-                        prompt_input = gr.Textbox(
-                            label="✍🏼 Prompt",
-                            info="Enter your prompt to create an image based on your description. ONE PROMPT PER LINE",
-                            lines=5,
-                            placeholder="Enter one prompt per line",
-                        )
+                        with gr.Column():
+                            prompt_input = gr.Textbox(
+                                label="✍🏼 Prompt",
+                                info="Enter your prompt to create an image based on your description. ONE PROMPT PER LINE",
+                                lines=5,
+                                placeholder="Enter one prompt per line",
+                            )
+                            
+                            random_prompt_btn = gr.Button(
+                                value="",
+                                variant="secondary",
+                                size="lg",
+                                icon=f"{pathlib.Path(__file__).parent.resolve()}/dice.png",
+                            )
                         negative_prompt_input = gr.Textbox(
                             label="❌ Negative prompt",
                             info="Enter a negative prompt to exclude certain elements from the generated image. NEGATIVE PROMPT WILL AFFECT ALL PROMPTS",
@@ -327,12 +362,38 @@ class UIFlux(UIBase):
                             info=self.models[0].get('description', ''),
                             value=self.available_models[0][1],
                         )
-                        lora_weights_selector = gr.Dropdown(
-                            choices=self.available_loras,
-                            label="LoRA Weights",
-                            visible=True,
-                            value=self.available_loras[0][1],
-                        )
+                        with gr.Row():
+                            lora_weights_1_selector = gr.Dropdown(
+                                choices=self.available_loras,
+                                label="LoRA 1",
+                                visible=True,
+                                value=self.available_loras[0][1],
+                            )
+                            lora_weights_adapter_1_slider = gr.Slider(
+                                label="LoRA 1 Adapter Weight",
+                                info="The weight which will be multiplied by each adapter's output before summing them together.",
+                                minimum=0.0,
+                                maximum=1.0,
+                                value=1.0,
+                                step=0.1,
+                                visible=True,
+                            )
+                        with gr.Row():
+                            lora_weights_2_selector = gr.Dropdown(
+                                choices=self.available_loras,
+                                label="LoRA 2",
+                                visible=True,
+                                value=self.available_loras[0][1],
+                            )
+                            lora_weights_adapter_2_slider = gr.Slider(
+                                label="LoRA 2 Adapter Weight",
+                                info="The weight which will be multiplied by each adapter's output before summing them together.",
+                                minimum=0.0,
+                                maximum=1.0,
+                                value=1.0,
+                                step=0.1,
+                                visible=True,
+                            )
 
                     with gr.Accordion("🖼️ Output Settings", open=False):
                         with gr.Row():
@@ -362,7 +423,7 @@ class UIFlux(UIBase):
                             visible=True,
                         )
                         lora_scale_slider = gr.Slider(
-                            label="LORA Scale",
+                            label="LoRA Scale",
                             info="A scaling factor for the LoRA weights to control their influence on the model. The default value is 1.0, indicating full influence. Lower values decrease the impact of the LoRA weights.",
                             minimum=0.0,
                             maximum=3,
@@ -454,6 +515,16 @@ class UIFlux(UIBase):
                             files_state,
                         ]
                     )
+
+            random_prompt_btn.click(
+                fn=self.generate_random_prompt,
+                inputs= [
+                    prompt_input,
+                ],
+                outputs=[
+                    prompt_input,
+                ],
+            )
                     
             model_selector.change(
                 fn=self.on_model_change,
@@ -465,7 +536,10 @@ class UIFlux(UIBase):
                     true_cfg_checkbox,
                     negative_prompt_input,
                     model_selector,
-                    lora_weights_selector,
+                    lora_weights_1_selector,
+                    lora_weights_adapter_1_slider,
+                    lora_weights_2_selector,
+                    lora_weights_adapter_2_slider,
                     lora_scale_slider,
                     guidance_scale_slider,
                     num_inference_steps_slider,
@@ -484,14 +558,25 @@ class UIFlux(UIBase):
                 ],
             )
             
-            lora_weights_selector.change(
+            lora_weights_1_selector.change(
                 fn=self.on_lora_weights_selector_change,
                 inputs= [
                     model_selector,
-                    lora_weights_selector,
+                    lora_weights_1_selector,
                 ],
                 outputs=[
-                    lora_weights_selector,
+                    lora_weights_1_selector,
+                ],
+            )
+
+            lora_weights_2_selector.change(
+                fn=self.on_lora_weights_selector_change,
+                inputs= [
+                    model_selector,
+                    lora_weights_2_selector,
+                ],
+                outputs=[
+                    lora_weights_2_selector,
                 ],
             )
 
@@ -502,7 +587,10 @@ class UIFlux(UIBase):
                     prompt_input,
                     negative_prompt_input,
                     model_selector,
-                    lora_weights_selector,
+                    lora_weights_1_selector,
+                    lora_weights_adapter_1_slider,
+                    lora_weights_2_selector,
+                    lora_weights_adapter_2_slider,
                     width_input,
                     height_input,
                     images_per_prompt_input,
@@ -526,7 +614,8 @@ class UIFlux(UIBase):
                 outputs=[
                     prompt_input,
                     model_selector,
-                    lora_weights_selector,
+                    lora_weights_1_selector,
+                    lora_weights_2_selector,
                     width_input,
                     height_input,
                     images_per_prompt_input,

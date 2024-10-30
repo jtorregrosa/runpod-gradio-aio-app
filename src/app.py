@@ -2,6 +2,7 @@ import gradio as gr
 import logging
 from UIFlux.ui_flux import UIFlux
 from UIFlux.ui_flux_upscaler import UIFluxUpscaler
+from flux_inpainting.ui import UIFluxInpainting
 from Utils.utils import get_cpu_info, get_memory_info, get_gpu_info, get_filesystem_info
 
 # Configure logging
@@ -37,6 +38,7 @@ def run_app(server_name: str = '0.0.0.0', server_port: int = 7860):
         # Initialize the UI components
         ui_flux = UIFlux().initialize().interface()
         ui_flux_upscaler = UIFluxUpscaler().initialize().interface()
+        ui_inpainting_flux = UIFluxInpainting().initialize().interface()
 
         # Create a tabbed interface using the initialized UIs
         with gr.Blocks(
@@ -85,6 +87,8 @@ def run_app(server_name: str = '0.0.0.0', server_port: int = 7860):
  
             with gr.Tab("Text2Image"):
                 ui_flux.render()
+            with gr.Tab("Flux Inpainting"):
+                ui_inpainting_flux.render()
             with gr.Tab("Flux.1 Upscaler"):
                 ui_flux_upscaler.render()
 

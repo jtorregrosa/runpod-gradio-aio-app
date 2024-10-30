@@ -1,5 +1,5 @@
 # Stage 1: Build the Python environment
-FROM runpod/pytorch:2.1.0-py3.10-cuda11.8.0-devel-ubuntu22.04 AS builder
+FROM runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04 AS builder
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
@@ -24,7 +24,7 @@ COPY src/requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
 # Stage 2: Build the final image
-FROM runpod/pytorch:2.1.0-py3.10-cuda11.8.0-devel-ubuntu22.04
+FROM runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive

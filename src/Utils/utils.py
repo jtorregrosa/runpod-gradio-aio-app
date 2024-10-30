@@ -1,6 +1,7 @@
 import yaml
 import logging
 import psutil
+import random
 import torch
 import os
 import zipfile
@@ -12,6 +13,36 @@ import platform
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+def generate_random_prompt():
+    # Components for each type of scene
+    landscape_adjectives = ["serene", "misty", "vast", "rolling", "snowy", "peaceful", "rocky"]
+    landscape_types = ["mountain range", "forest", "desert", "beach", "hills", "tundra", "lake"]
+    landscape_details = ["under a clear blue sky", "filled with ancient trees", "stretching to the horizon", "at sunrise", "bathed in soft morning light", "under a full moon", "reflecting the stars"]
+
+    nature_elements = ["river", "meadow", "cliffside", "waterfall", "grove", "field"]
+    nature_descriptions = ["winding through a dense forest", "bursting with wildflowers", "covered in lush moss", "cascading over rocky ledges", "filled with blooming lavender", "surrounded by tall oaks", "expansive and golden"]
+
+    animal_adjectives = ["playful", "graceful", "majestic", "curious", "solitary"]
+    animal_types = ["herd of deer", "pack of wolves", "eagle", "family of ducks", "group of flamingos", "fox", "pair of rabbits"]
+    animal_actions = ["grazing in a clearing", "running through the snow", "soaring high above the valley", "swimming along a pond", "wading in shallow waters", "watching from behind the trees", "hopping through the underbrush"]
+
+    human_activities = ["couple enjoying a quiet picnic", "hiker reaching the summit", "group of friends around a campfire", "family exploring a forest trail", "painter capturing the view", "photographer kneeling for the perfect shot", "young child playing near a creek"]
+    human_descriptions = ["under a tree", "surrounded by colorful leaves", "with a breathtaking view", "in the golden sunset", "with paintbrush in hand", "focused and attentive", "laughing and carefree"]
+
+    # Select a random type of scene
+    scene_type = random.choice(["landscape", "nature", "animal", "human"])
+
+    if scene_type == "landscape":
+        prompt = f"{random.choice(landscape_adjectives)} {random.choice(landscape_types)} {random.choice(landscape_details)}."
+    elif scene_type == "nature":
+        prompt = f"A {random.choice(nature_elements)} {random.choice(nature_descriptions)}."
+    elif scene_type == "animal":
+        prompt = f"A {random.choice(animal_adjectives)} {random.choice(animal_types)} {random.choice(animal_actions)}."
+    else:  # human
+        prompt = f"A {random.choice(human_activities)} {random.choice(human_descriptions)}."
+
+    return prompt
 
 def load_yaml(yaml_file_path: str) -> Any:
     """

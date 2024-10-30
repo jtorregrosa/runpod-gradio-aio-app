@@ -11,6 +11,62 @@ models:
       num_inference_steps: 50
       max_sequence_length: 512
   loras:
+  - id: "contrabandista_clothes"
+    name: "Contrabandista Outfit"
+    repo: "jtorregrosa/misc_flux_lora"
+    weight_name: "contrabandistas_outfit_flux_lora_1500.safetensors"
+    trigger: "[jtcontrabandista consisting of a person with traditional black vest with red and gold embroidery over a white shirt, with a red sash around the waist and dark pants with red and gold side trim.]"
+    description: "This is a LoRA trained on FLUX.1-dev to generate images of contrabandistas outfit."
+
+  - id: "watercolour"
+    name: "Watercolour Style"
+    repo: "SebastianBodza/Flux_Aquarell_Watercolor_v2"
+    weight_name: "lora.safetensors"
+    trigger: "[AQUACOLTOK]"
+    description: "This is a LoRA trained on FLUX.1-dev to generate images with a watercolour style."
+
+  - id: "ghibsky"
+    name: "Ghibsky Style"
+    repo: "aleksa-codes/flux-ghibsky-illustration"
+    weight_name: "lora.safetensors"
+    trigger: "[GHIBSKY style painting]"
+    description: "The Flux Ghibsky Illustration model generates landscapes that blend serene, surreal skies with intricate, Ghibli-inspired details. This fusion of styles creates enchanting scenes that capture the essence of both Ghibli's whimsical charm and Makoto Shinkai's atmospheric beauty. Perfect for creating dreamy visuals. You can also run the model on Replicate. Feedback is welcome!"
+
+  - id: "frostinglane"
+    name: "Frosting Lane Style"
+    repo: "alvdansen/frosting_lane_flux"
+    weight_name: "flux_dev_frostinglane_araminta_k.safetensors"
+    trigger: "[frstingln illustration]"
+    description: "This is a LoRA trained on FLUX.1-dev to generate images with a frosting lane illustration style."
+
+  - id: "simplevector"
+    name: "Simple Vector Style"
+    repo: "renderartist/simplevectorflux"
+    weight_name: "Simple_Vector_Flux_v2_renderartist.safetensors"
+    trigger: "[v3ct0r style, simple vector art, isolated on white bg]"
+    description: "This is a LoRA trained on FLUX.1-dev to generate images with a frosting lane illustration style."
+
+  - id: "coloringbook"
+    name: "Coloring Book Style"
+    repo: "renderartist/coloringbookflux"
+    weight_name: "c0l0ringb00k_Flux_v1_renderartist.safetensors"
+    trigger: "[c0l0ringb00k coloring book page]"
+    description: "Coloring Book Flux is a Flux LoRA trained on a 100 image synthetic dataset that I personally generated, the images in the dataset were mostly human, vehicles and animal illustrations."
+
+  - id: "boring-dragon/sketchy"
+    name: "Sketchy Style"
+    repo: "boring-dragon/sketchy"
+    weight_name: "sketchy.safetensors"
+    trigger: "[GETSKETCHY --s 28]"
+    description: "This is a LoRA trained on FLUX.1-dev to generate images using Sketchy style."
+
+  - id: "WizWhite/wizard-s-paper-model-universe"
+    name: "Wizard's Paper Style"
+    repo: "WizWhite/wizard-s-paper-model-universe"
+    weight_name: "Wiz-Paper_Model_Universe.safetensors"
+    trigger: "[A highly detailed paper model cutout]"
+    description: "This is a LoRA trained on FLUX.1-dev to generate images using Wizard's Paper style."
+
   - id: "jtorregrosa/endless_flux_lora"
     name: "Endless Line Style"
     repo: "jtorregrosa/endless_flux_lora"
@@ -22,7 +78,7 @@ models:
     name: "Old Contrabandistas Style"
     repo: "jtorregrosa/misc_flux_lora"
     weight_name: "jtcontrabandistas_flux_lora_v1.safetensors"
-    trigger: "[jtcontrabandistas]"
+    trigger: "[jtcontrabandista, Romantic-era watercolor illustration depicting a contrabandista in historical clothing. The style includes soft, fluid washes with natural earthy tones, and dramatic yet subtle shading. The figure is shown in a dynamic pose, suggesting motion or storytelling, with a minimalist atmospheric background typical of early 19th-century Romanticism. The composition emphasizes character expression and cultural attire, with muted, warm color hues that evoke a sense of nostalgia]"
     description: "This is a LoRA trained on FLUX.1-dev to generate images using an Old Contrabandistas Style."
 
   - id: "jtorregrosa"
@@ -38,6 +94,13 @@ models:
     weight_name: "midomenech_flux_lora_v1.safetensors"
     trigger: "[midomenech]"
     description: "This is a LoRA trained on FLUX.1-dev to generate images of my girlfriend."
+
+  - id: "W4T3RC0L0UR"
+    name: "W4T3RC0L0UR Style"
+    repo: "jtorregrosa/misc_flux_lora"
+    weight_name: "watercolour_23000_lora_weights.safetensors"
+    trigger: "[W4T3RC0L0UR style]"
+    description: "This is a LoRA trained on FLUX.1-dev to generate images using W4T3RC0L0UR style."
     
   - id: "Shakker-Labs/FLUX.1-dev-LoRA-One-Click-Creative-Template"
     name: "Stickers Cartoon"
