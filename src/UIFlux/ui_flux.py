@@ -45,7 +45,7 @@ class UIFlux(UIBase):
             self.models = config.get('models', [])
             self.defaults = config.get('defaults', {}).get('settings', {})
             self.available_models = [[item.get('name'), item.get('id')] for item in self.models]
-            self.available_loras = [["None", ""]] + [[item.get('name'), item.get('id')] for item in self.models[0].get('loras')]
+            self.available_loras = [["None", ""]] + [[item.get('name'), item.get('id')] for item in self.models[0].get('loras', [])]
             self.logger.info("Configuration loaded successfully from '%s'.", yaml_file_path)
         except Exception as e:
             self.logger.error("Failed to load configuration: %s", e, exc_info=True)
